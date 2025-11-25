@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     lib: {
-      entry: "src/ts-renderer.tsx",
+      entry: "src/RootRenderer.tsx",
       name: "FlightSeatMapChart",
       fileName: () => "index.js"
     },
