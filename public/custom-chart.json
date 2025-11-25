@@ -1,6 +1,7 @@
 {
-  "version": "1.0.0",
-  "apiVersion": "1.0.0",
-  "type": "custom_chart",
-  "entry": "index.html"
+  "version": "1.0",
+  "name": "flight-seat-map",
+  "chartType": "Custom",
+  "entryPoint": "index.html",
+"icon": "https://dummyimage.com/100x100/999/fff.png&text=Seat"
 }

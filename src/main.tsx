@@ -7,7 +7,9 @@ import "./RootRenderer";
 // If ThoughtSpot calls window.customChartApp.render(), it will render into the container.
 // If NOT, we mount the local dev app.
 
-if (!(window as any).__TS_EMBEDDED__) {
+const isEmbedded = window.self !== window.top;
+
+if (!isEmbedded) {
   const rootEl = document.getElementById("root");
   if (rootEl) {
     ReactDOM.createRoot(rootEl).render(
