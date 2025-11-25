@@ -8,7 +8,7 @@ type Props = {
   config?: any;
 };
 
-export default function FlightSeatMap({ svgMarkup }: Props){
+export default function FlightSeatMap({ svgMarkup, data, config }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // 1. Memoize data so it doesn't cause effect re-runs
