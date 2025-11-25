@@ -9,8 +9,8 @@ declare global {
   }
 }
 
-(window as any).customChartApp = {
-  render: (container: HTMLElement, data: any, config: any) => {
+window.customChartApp = {
+  render(container: HTMLElement, data: any, config: any) {
     const root = ReactDOM.createRoot(container);
     root.render(
       <React.StrictMode>
@@ -18,4 +18,4 @@ declare global {
       </React.StrictMode>
     );
   }
-}
+};
