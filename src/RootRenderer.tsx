@@ -9,14 +9,13 @@ declare global {
   }
 }
 
-window.customChartApp = {
+(window as any).customChartApp = {
   render: (container: HTMLElement, data: any, config: any) => {
     const root = ReactDOM.createRoot(container);
-
     root.render(
       <React.StrictMode>
         <FlightSeatMap svgMarkup={seatSvg} data={data} config={config} />
       </React.StrictMode>
     );
-  },
-};
+  }
+}

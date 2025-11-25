@@ -1,11 +1,5 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
-import "./RootRenderer.tsx";
+import "./index.css";
+import "./RootRenderer"; // Only load the TS renderer
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+// Do NOT mount anything here.
+// ThoughtSpot will call window.customChartApp.render(...)
