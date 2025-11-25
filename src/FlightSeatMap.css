@@ -1,0 +1,64 @@
+
+.flight-seat-map-container {
+    font-family: sans-serif;
+    text-align: center;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.svg-container {
+    width: 80%;
+    max-width: 1000px;
+    border: 1px solid #ccc;
+    padding: 20px;
+    border-radius: 8px;
+}
+
+.flight-svg {
+    width: 100%;
+    height: auto;
+}
+
+/* --- Seat Styles --- */
+.seat-default {
+    fill: #f0f0f0; /* Empty seat color */
+    stroke: #aaa;
+    stroke-width: 1px;
+}
+
+.seat-occupied {
+    fill: #4da6ff; /* Blue */
+    stroke: #336699;
+    stroke-width: 1px;
+    cursor: pointer;
+}
+
+.seat-frequent-traveller {
+    fill: #ff9933; /* Orange */
+    stroke: #cc6600;
+    stroke-width: 1px;
+    cursor: pointer;
+}
+
+/* Add a hover effect for interactive seats */
+.seat-occupied:hover, .seat-frequent-traveller:hover {
+    opacity: 0.7;
+}
+
+
+/* --- Tooltip Style --- */
+.tooltip {
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 15px;
+    border-radius: 5px;
+    font-size: 14px;
+    pointer-events: none; /* Important: prevents the tooltip from blocking mouse events on the seats */
+    white-space: nowrap;
+    z-index: 1000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
