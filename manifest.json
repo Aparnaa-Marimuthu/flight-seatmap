@@ -1,0 +1,8 @@
+{
+  "name": "flight-seatmap-chart",
+  "label": "Flight Seat Map",
+  "pluginType": "chart",
+  "version": "1.0.0",
+  "entry": "dist/index.js",
+  "schema": "schema.json"
+}
