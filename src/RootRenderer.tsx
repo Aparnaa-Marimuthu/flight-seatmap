@@ -6,11 +6,14 @@ import seatSvg from "./assets/airplane_seat_map.svg?raw";
 declare global {
   interface Window {
     customChartApp: any;
+    __TS_EMBEDDED__?: boolean;
   }
 }
 
 window.customChartApp = {
   render(container: HTMLElement, data: any, config: any) {
+    window.__TS_EMBEDDED__ = true;
+
     const root = ReactDOM.createRoot(container);
     root.render(
       <React.StrictMode>
