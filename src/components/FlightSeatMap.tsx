@@ -88,76 +88,74 @@ export default function FlightSeatMap({ svgMarkup = "", data: _data, config: _co
   // -------------------------------------------------------------------
   // HOVER LOGIC (works for seat_2A, seat_2B, seat_4C)
   // -------------------------------------------------------------------
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+ useEffect(() => {
+  const container = containerRef.current;
+  if (!container) return;
 
-    const findSeatGroup = (el: Element | null) => {
-      if (!el) return null;
-      if (el.id?.startsWith("seat_")) return el;
-      return el.closest("g[id^='seat_']");
-    };
+  const groups = container.querySelectorAll<SVGGElement>("g[id^='seat_']");
 
-    const onOver = (ev: MouseEvent) => {
-      const group = findSeatGroup(ev.target as Element);
-      if (!group) return;
+  const onEnter = (ev: PointerEvent) => {
+    const group = ev.currentTarget as SVGGElement;
+    const seatInfo = seatData[group.id];
+    if (!seatInfo) return;
 
-      const seatInfo = seatData[group.id];
+    // highlight
+    group.querySelectorAll("path").forEach((p) => {
+      p.setAttribute("stroke", "#222");
+      p.setAttribute("stroke-width", "0");
+    });
 
-      // highlight
-      group.querySelectorAll("path").forEach((p) => {
-        p.setAttribute("stroke", "#222");
-        p.setAttribute("stroke-width", "0");
-      });
+    setTooltip({
+      visible: true,
+      x: ev.clientX + 12,
+      y: ev.clientY + 12,
+      html: `
+        <strong>Seat No: ${group.id.replace("seat_", "")}</strong><br/>
+        Frequent Traveller ID: ${seatInfo.travellerId}<br/>
+        Passenger Name: ${seatInfo.name}<br/>
+        Most Purchased Items: ${seatInfo.MostPurchasedItems}
+      `,
+    });
+  };
 
-      if (seatInfo) {
-        setTooltip({
-          visible: true,
-          x: ev.clientX + 12,
-          y: ev.clientX + 12,
-          html: `
-            <strong>${group.id.replace("seat_", "")}</strong><br/>
-            Traveller ID: ${seatInfo.travellerId}<br/>
-            Passenger: ${seatInfo.name}<br/>
-            Most Purchased Items: ${seatInfo.MostPurchasedItems}
-          `,
-        });
-      }
-    };
+  const onLeave = (ev: PointerEvent) => {
+    const group = ev.currentTarget as SVGGElement;
 
-    const onOut = (ev: MouseEvent) => {
-      const group = findSeatGroup(ev.target as Element);
+    group.querySelectorAll("path").forEach((p) => {
+      p.removeAttribute("stroke");
+      p.removeAttribute("stroke-width");
+    });
 
-      if (group) {
-        group.querySelectorAll("path").forEach((p) => {
-          p.removeAttribute("stroke");
-          p.removeAttribute("stroke-width");
-        });
-      }
+    setTooltip((t) => ({ ...t, visible: false }));
+  };
 
-      setTooltip((t) => ({ ...t, visible: false }));
-    };
+  const onMove = (ev: PointerEvent) => {
+    setTooltip((t) =>
+      t.visible
+        ? {
+            ...t,
+            x: ev.clientX + 12,
+            y: ev.clientY + 12,
+          }
+        : t
+    );
+  };
 
-    const onMove = (ev: MouseEvent) => {
-      if (tooltip.visible) {
-        setTooltip((t) => ({
-          ...t,
-          x: ev.clientX + 12,
-          y: ev.clientY + 12,
-        }));
-      }
-    };
+  groups.forEach((g) => {
+    g.addEventListener("pointerenter", onEnter);
+    g.addEventListener("pointerleave", onLeave);
+    g.addEventListener("pointermove", onMove);
+  });
 
-    container.addEventListener("mouseover", onOver);
-    container.addEventListener("mouseout", onOut);
-    container.addEventListener("mousemove", onMove);
+  return () => {
+    groups.forEach((g) => {
+      g.removeEventListener("pointerenter", onEnter);
+      g.removeEventListener("pointerleave", onLeave);
+      g.removeEventListener("pointermove", onMove);
+    });
+  };
+}, [seatData]);
 
-    return () => {
-      container.removeEventListener("mouseover", onOver);
-      container.removeEventListener("mouseout", onOut);
-      container.removeEventListener("mousemove", onMove);
-    };
-  }, [seatData, tooltip.visible]);
 
   // -------------------------------------------------------------------
   // RENDER SVG
@@ -187,6 +185,16 @@ export default function FlightSeatMap({ svgMarkup = "", data: _data, config: _co
             left: tooltip.x,
             pointerEvents: "none",
             zIndex: 99999,
+            background: "rgba(30, 30, 30, 0.92)",
+            color: "#fff",
+            padding: "10px 14px",
+            borderRadius: "6px",
+            fontSize: "13px",
+            fontFamily: "Inter, sans-serif",
+            lineHeight: "1.45",
+            textAlign: "left",      
+            border: "1px solid rgba(255,255,255,0.12)",
+            maxWidth: "260px"
           }}
           dangerouslySetInnerHTML={{ __html: tooltip.html }}
         />
