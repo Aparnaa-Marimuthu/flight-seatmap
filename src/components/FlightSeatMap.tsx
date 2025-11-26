@@ -5,93 +5,146 @@ type SeatStatus = "Frequent Traveller" | "Occupied" | "Empty";
 
 type Props = {
   svgMarkup?: string;
-  data?: any;   // ThoughtSpot will pass data here later; currently unused
-  config?: any; // ThoughtSpot config; currently unused
+  data?: any;
+  config?: any;
 };
 
 export default function FlightSeatMap({ svgMarkup = "", data: _data, config: _config }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Hardcoded demo seat data (will be replaced by ThoughtSpot data later)
+  // ---------------------------
+  //  SEAT DATA (UPDATED WITH HARD CODED REAL SEAT NUMBERS)
+  // ---------------------------
   const seatData = useMemo(
     () =>
       ({
-        "1A": { name: "Passenger 1", travellerId: "EZ9081123", item: "sandwich and coffee", status: "Frequent Traveller" as SeatStatus },
-        "1B": { name: "Passenger 2", travellerId: "EZ9081124", item: "sandwich", status: "Occupied" as SeatStatus },
-        "4C": { name: "Passenger 3", travellerId: "EZ9081125", item: "coffee", status: "Occupied" as SeatStatus },
-        // add more sample seats here
-      } as Record<string, { name: string; travellerId: string; item: string; status: SeatStatus }>),
+        seat_2A: {
+          name: "Oliver Bennett",
+          travellerId: "EZY006520",
+          MostPurchasedItems: "Diet Coke",
+          status: "Frequent Traveller",
+        },
+        seat_2B: {
+          name: "Charlotte Hayes",
+          travellerId: "EZY006521",
+          MostPurchasedItems: "Water and Sandwich",
+          status: "Occupied",
+        },
+        seat_4C: {
+          name: "James Whitmore",
+          travellerId: "EZY120439",
+          MostPurchasedItems: "Coffee",
+          status: "Occupied",
+        },
+
+        // keep your demo seat data
+        // seat_4: { name: "Oliver Bennett", travellerId: "EZ9081123", MostPurchasedItems: "sandwich and coffee", status: "Frequent Traveller" },
+        // seat_23: { name: "Charlotte Hayes", travellerId: "EZ9081124", MostPurchasedItems: "sandwich", status: "Occupied" },
+        // seat_58: { name: "James Whitmore", travellerId: "EZ9081125", MostPurchasedItems: "coffee", status: "Occupied" },
+        // seat_101: { name: "Passenger 4", travellerId: "EZ9081126", MostPurchasedItems: "tea", status: "Frequent Traveller" },
+        // seat_144: { name: "Passenger 5", travellerId: "EZ9081127", MostPurchasedItems: "snacks", status: "Occupied" },
+        // seat_189: { name: "Passenger 6", travellerId: "EZ9081128", MostPurchasedItems: "juice", status: "Frequent Traveller" },
+        // seat_230: { name: "Passenger 7", travellerId: "EZ9081129", MostPurchasedItems: "sandwich", status: "Occupied" },
+        // seat_278: { name: "Passenger 8", travellerId: "EZ9081130", MostPurchasedItems: "coffee", status: "Occupied" },
+        // seat_315: { name: "Passenger 9", travellerId: "EZ9081131", MostPurchasedItems: "tea", status: "Frequent Traveller" },
+        // seat_348: { name: "Passenger 10", travellerId: "EZ9081132", MostPurchasedItems: "water", status: "Occupied" },
+      } as Record<string, { name: string; travellerId: string; MostPurchasedItems: string; status: SeatStatus }>),
     []
   );
 
   const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, html: "" });
 
   const colorForStatus = (s?: SeatStatus) => {
-    if (s === "Frequent Traveller") return "#e67e22"; // orange
-    if (s === "Occupied") return "#3498db"; // blue
-    return "#ffffff"; // empty/default
+    if (s === "Frequent Traveller") return "#d15d99ff";
+    if (s === "Occupied") return "#d15d99ff";
+    return "#ffffff";
   };
 
-  // Apply seat colors once when svgMarkup or seatData changes
+  // -------------------------------------------------------------------
+  // APPLY COLORS TO *ALL* seat_ groups including 2A, 2B, 4C
+  // -------------------------------------------------------------------
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // set classes & fill for seats present in seatData
-    Object.entries(seatData).forEach(([seatId, passenger]) => {
-      // query by id attribute safely (IDs starting with numbers are okay with attribute selector)
-      const seatEl = container.querySelector<SVGElement>(`[id='${seatId}']`);
-      if (!seatEl) return;
-      seatEl.setAttribute("fill", colorForStatus(passenger.status));
-      // add a marker class so event delegation can detect it easily
-      seatEl.classList.add("interactive-seat");
-      seatEl.setAttribute("style", "cursor:pointer; transition: stroke 0.12s;");
+    const allSeats = container.querySelectorAll<SVGGElement>("g[id^='seat_']");
+
+    allSeats.forEach((seatGroup) => {
+      const id = seatGroup.id;
+      const data = seatData[id];
+
+      const seatPaths = seatGroup.querySelectorAll("path");
+
+      if (data) {
+        const color = colorForStatus(data.status);
+        seatPaths.forEach((p) => p.setAttribute("fill", color));
+      }
+
+      seatGroup.classList.add("interactive-seat");
+      seatGroup.style.cursor = "pointer";
     });
   }, [svgMarkup, seatData]);
 
-  // Event delegation for hover + move + out
+  // -------------------------------------------------------------------
+  // HOVER LOGIC (works for seat_2A, seat_2B, seat_4C)
+  // -------------------------------------------------------------------
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const findSeatEl = (el: Element | null) => {
+    const findSeatGroup = (el: Element | null) => {
       if (!el) return null;
-      // if the element itself has an id matching seatData, return it
-      if (el.id && seatData[el.id]) return el as Element;
-      // otherwise climb DOM tree until a seat element (with id in seatData) is found
-      return el.closest("[id]") as Element | null;
+      if (el.id?.startsWith("seat_")) return el;
+      return el.closest("g[id^='seat_']");
     };
 
     const onOver = (ev: MouseEvent) => {
-      const target = ev.target as Element | null;
-      const seat = findSeatEl(target);
-      if (!seat || !seat.id || !seatData[seat.id]) return;
+      const group = findSeatGroup(ev.target as Element);
+      if (!group) return;
 
-      const p = seatData[seat.id];
-      seat.setAttribute("stroke", "#222");
-      seat.setAttribute("stroke-width", "1.6");
+      const seatInfo = seatData[group.id];
 
-      setTooltip({
-        visible: true,
-        x: ev.clientX + 12,
-        y: ev.clientY + 12,
-        html: `<strong>${seat.id}</strong><br/>Single Traveller ID: ${p.travellerId}<br/>Passenger Name: ${p.name}<br/>Most purchased item: ${p.item}`,
+      // highlight
+      group.querySelectorAll("path").forEach((p) => {
+        p.setAttribute("stroke", "#222");
+        p.setAttribute("stroke-width", "0");
       });
+
+      if (seatInfo) {
+        setTooltip({
+          visible: true,
+          x: ev.clientX + 12,
+          y: ev.clientX + 12,
+          html: `
+            <strong>${group.id.replace("seat_", "")}</strong><br/>
+            Traveller ID: ${seatInfo.travellerId}<br/>
+            Passenger: ${seatInfo.name}<br/>
+            Most Purchased Items: ${seatInfo.MostPurchasedItems}
+          `,
+        });
+      }
     };
 
     const onOut = (ev: MouseEvent) => {
-      const target = ev.target as Element | null;
-      const seat = findSeatEl(target);
-      if (seat && seat.id && seatData[seat.id]) {
-        seat.removeAttribute("stroke");
-        seat.removeAttribute("stroke-width");
+      const group = findSeatGroup(ev.target as Element);
+
+      if (group) {
+        group.querySelectorAll("path").forEach((p) => {
+          p.removeAttribute("stroke");
+          p.removeAttribute("stroke-width");
+        });
       }
+
       setTooltip((t) => ({ ...t, visible: false }));
     };
 
     const onMove = (ev: MouseEvent) => {
       if (tooltip.visible) {
-        setTooltip((t) => ({ ...t, x: ev.clientX + 12, y: ev.clientY + 12 }));
+        setTooltip((t) => ({
+          ...t,
+          x: ev.clientX + 12,
+          y: ev.clientY + 12,
+        }));
       }
     };
 
@@ -106,21 +159,25 @@ export default function FlightSeatMap({ svgMarkup = "", data: _data, config: _co
     };
   }, [seatData, tooltip.visible]);
 
-  // Render the SVG container once (memoized so tooltip updates don't re-insert the DOM)
-  const svgNode = useMemo(() => {
-    return (
+  // -------------------------------------------------------------------
+  // RENDER SVG
+  // -------------------------------------------------------------------
+  const svgNode = useMemo(
+    () => (
       <div
         ref={containerRef}
         className="svg-container"
         dangerouslySetInnerHTML={{ __html: svgMarkup }}
         style={{ width: "100%", height: "100%", overflow: "visible" }}
       />
-    );
-  }, [svgMarkup]);
+    ),
+    [svgMarkup]
+  );
 
   return (
     <div className="flight-seat-map-container" style={{ position: "relative", width: "100%", height: "100%" }}>
       {svgNode}
+
       {tooltip.visible && (
         <div
           className="tooltip"

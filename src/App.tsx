@@ -1,5 +1,5 @@
 import FlightSeatMap from "./components/FlightSeatMap";
-import seatSvg from "./assets/airplane_seat_map.svg?raw";
+import seatSvg from "./assets/corrected_seats_hitbox.svg?raw";
 
 function App() {
   return (
