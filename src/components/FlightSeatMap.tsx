@@ -1,6 +1,97 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import "../FlightSeatMap.css";
 
+/* ---------------------------------------------------
+   SVG PREP HELPERS
+--------------------------------------------------- */
+
+function safeGetAttr(el: Element | null, name: string) {
+  if (!el) return null;
+  return (
+    el.getAttribute(name) ??
+    el.getAttributeNS("http://www.w3.org/1999/xlink", name) ??
+    el.getAttributeNS("http://www.w3.org/2000/svg", name)
+  );
+}
+
+function safeSetXLink(el: Element, href: string) {
+  el.setAttribute("href", href);
+  el.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", href);
+}
+
+function prepareSvgMarkup(rawSvg: string) {
+  try {
+    const rootNormalized = rawSvg
+      .replace(/<\s*ns\d+:svg\b/gi, "<svg")
+      .replace(/<\/\s*ns\d+:svg\s*>/gi, "</svg>");
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(rootNormalized, "image/svg+xml");
+    const svg = doc.documentElement;
+
+    if (!svg || svg.nodeName.toLowerCase() !== "svg") {
+      return rawSvg;
+    }
+
+    const defs = svg.querySelector("defs");
+    if (defs && svg.firstElementChild !== defs) {
+      svg.removeChild(defs);
+      svg.insertBefore(defs, svg.firstElementChild || null);
+    }
+
+    const images = svg.querySelectorAll("image");
+    images.forEach((img) => {
+      const href = safeGetAttr(img, "href") ?? "";
+      if (!href) return;
+      safeSetXLink(img, href.replace(/[\r\n]+/g, ""));
+      if (!img.getAttribute("preserveAspectRatio")) {
+        img.setAttribute("preserveAspectRatio", "none");
+      }
+    });
+
+    const patterns = svg.querySelectorAll("pattern");
+    const svgEl = svg as unknown as SVGSVGElement;
+    const vb = svgEl.viewBox?.baseVal;
+
+    const svgWidth =
+      parseFloat(svgEl.getAttribute("width") || "") || (vb ? vb.width : 0);
+
+    const svgHeight =
+      parseFloat(svgEl.getAttribute("height") || "") || (vb ? vb.height : 0);
+
+    patterns.forEach((p) => {
+      p.setAttribute("patternUnits", "userSpaceOnUse");
+      p.removeAttribute("patternContentUnits");
+      if (svgWidth && svgHeight) {
+        p.setAttribute("width", String(svgWidth));
+        p.setAttribute("height", String(svgHeight));
+      }
+
+      const use = p.querySelector("use");
+      if (use) {
+        const useHref =
+          use.getAttribute("href") ??
+          use.getAttributeNS("http://www.w3.org/1999/xlink", "href") ??
+          use.getAttribute("ns1:href");
+
+        if (useHref) safeSetXLink(use, useHref);
+
+        const tr = use.getAttribute("transform");
+        if (tr && /scale\(\s*0\.00/.test(tr)) {
+          use.removeAttribute("transform");
+        }
+      }
+    });
+
+    const serializer = new XMLSerializer();
+    return serializer.serializeToString(doc);
+  } catch {
+    return rawSvg;
+  }
+}
+
+/* -------------------------------------------------- */
+
 type SeatStatus = "Frequent Traveller" | "Occupied" | "Empty";
 
 type Props = {
@@ -9,50 +100,47 @@ type Props = {
   config?: any;
 };
 
-export default function FlightSeatMap({ svgMarkup = "", data: _data, config: _config }: Props) {
+export default function FlightSeatMap({ svgMarkup = "", data: _data }: Props) {
+  // ref to the outer wrapper (position: relative)
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  // ref to the svg container (the element we scale)
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // ---------------------------
-  //  SEAT DATA (UPDATED WITH HARD CODED REAL SEAT NUMBERS)
-  // ---------------------------
-  const seatData = useMemo(
-    () =>
-      ({
-        seat_2A: {
-          name: "Oliver Bennett",
-          travellerId: "EZY006520",
-          MostPurchasedItems: "Diet Coke",
-          status: "Frequent Traveller",
-        },
-        seat_2B: {
-          name: "Charlotte Hayes",
-          travellerId: "EZY006521",
-          MostPurchasedItems: "Water and Sandwich",
-          status: "Occupied",
-        },
-        seat_4C: {
-          name: "James Whitmore",
-          travellerId: "EZY120439",
-          MostPurchasedItems: "Coffee",
-          status: "Occupied",
-        },
+  /* ZOOM STATE ---------------------------------- */
+  const [zoom, setZoom] = useState(0.4); // initial = 60%
 
-        // keep your demo seat data
-        // seat_4: { name: "Oliver Bennett", travellerId: "EZ9081123", MostPurchasedItems: "sandwich and coffee", status: "Frequent Traveller" },
-        // seat_23: { name: "Charlotte Hayes", travellerId: "EZ9081124", MostPurchasedItems: "sandwich", status: "Occupied" },
-        // seat_58: { name: "James Whitmore", travellerId: "EZ9081125", MostPurchasedItems: "coffee", status: "Occupied" },
-        // seat_101: { name: "Passenger 4", travellerId: "EZ9081126", MostPurchasedItems: "tea", status: "Frequent Traveller" },
-        // seat_144: { name: "Passenger 5", travellerId: "EZ9081127", MostPurchasedItems: "snacks", status: "Occupied" },
-        // seat_189: { name: "Passenger 6", travellerId: "EZ9081128", MostPurchasedItems: "juice", status: "Frequent Traveller" },
-        // seat_230: { name: "Passenger 7", travellerId: "EZ9081129", MostPurchasedItems: "sandwich", status: "Occupied" },
-        // seat_278: { name: "Passenger 8", travellerId: "EZ9081130", MostPurchasedItems: "coffee", status: "Occupied" },
-        // seat_315: { name: "Passenger 9", travellerId: "EZ9081131", MostPurchasedItems: "tea", status: "Frequent Traveller" },
-        // seat_348: { name: "Passenger 10", travellerId: "EZ9081132", MostPurchasedItems: "water", status: "Occupied" },
-      } as Record<string, { name: string; travellerId: string; MostPurchasedItems: string; status: SeatStatus }>),
-    []
-  );
+  const MIN_ZOOM = 0.3;
+  const MAX_ZOOM = 3;
+  const ZOOM_STEP = 0.25;
 
-  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, html: "" });
+  const handleZoomIn = () => setZoom((z) => Math.min(MAX_ZOOM, z + ZOOM_STEP));
+  const handleZoomOut = () => setZoom((z) => Math.max(MIN_ZOOM, z - ZOOM_STEP));
+  const handleReset = () => setZoom(0.4);
+  /* -------------------------------------------- */
+
+  const processedSvg = useMemo(() => prepareSvgMarkup(svgMarkup), [svgMarkup]);
+
+  const seatData = useMemo(() => {
+    if (!_data) return {};
+    const processed: any = {};
+    _data.forEach((item: any) => {
+      const id = `seat_${item.Seat}`;
+      processed[id] = {
+        name: item.PassengerName,
+        travellerId: item.PassengerId,
+        MostPurchasedItems: item.ProductHighLevel,
+        status: "Occupied",
+      };
+    });
+    return processed;
+  }, [_data]);
+
+  const [tooltip, setTooltip] = useState({
+    visible: false,
+    x: 0,
+    y: 0,
+    html: "",
+  });
 
   const colorForStatus = (s?: SeatStatus) => {
     if (s === "Frequent Traveller") return "#d15d99ff";
@@ -60,141 +148,156 @@ export default function FlightSeatMap({ svgMarkup = "", data: _data, config: _co
     return "#ffffff";
   };
 
-  // -------------------------------------------------------------------
-  // APPLY COLORS TO *ALL* seat_ groups including 2A, 2B, 4C
-  // -------------------------------------------------------------------
+  /* APPLY COLORS */
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const allSeats = container.querySelectorAll<SVGGElement>("g[id^='seat_']");
+    const allSeats =
+      container.querySelectorAll<SVGRectElement>("rect[id^='seat_']");
+    allSeats.forEach((rect) => {
+      const info = seatData[rect.id];
+      if (info) rect.setAttribute("fill", colorForStatus(info.status));
+      rect.style.cursor = "pointer";
+    });
+  }, [processedSvg, seatData]);
 
-    allSeats.forEach((seatGroup) => {
-      const id = seatGroup.id;
-      const data = seatData[id];
+  /* TOOLTIP + INTERACTION */
+  useEffect(() => {
+    const container = containerRef.current;
+    const wrapper = wrapperRef.current;
+    if (!container || !wrapper) return;
 
-      const seatPaths = seatGroup.querySelectorAll("path");
+    const getSeatRect = (el: EventTarget | null): SVGRectElement | null => {
+      if (!el || !(el instanceof Element)) return null;
+      return el.closest("rect[id^='seat_']") as SVGRectElement | null;
+    };
 
-      if (data) {
-        const color = colorForStatus(data.status);
-        seatPaths.forEach((p) => p.setAttribute("fill", color));
+    // Convert viewport clientX/clientY to coordinates relative to the wrapper element.
+    const clientToWrapper = (clientX: number, clientY: number) => {
+      const rect = wrapper.getBoundingClientRect();
+      // no division by zoom here — tooltip is not inside the scaled element
+      const x = clientX - rect.left + wrapper.scrollLeft;
+      const y = clientY - rect.top + wrapper.scrollTop;
+      return { x, y };
+    };
+
+    const onPointerOver = (ev: PointerEvent) => {
+      const seatRect = getSeatRect(ev.target);
+      if (!seatRect) return;
+
+      const info = seatData[seatRect.id];
+      if (!info) return;
+
+      seatRect.setAttribute("stroke", "#222");
+      seatRect.setAttribute("stroke-width", "2");
+
+      const pos = clientToWrapper(ev.clientX, ev.clientY);
+      setTooltip({
+        visible: true,
+        x: pos.x + 12,
+        y: pos.y + 12,
+        html: `
+          <strong>Seat No: ${seatRect.id.replace("seat_", "")}</strong><br/>
+          Passenger Name: ${info.name}<br/>
+          Frequent Traveller ID: ${info.travellerId}<br/>
+          Most Purchased Items: ${info.MostPurchasedItems}
+        `,
+      });
+    };
+
+    const onPointerOut = (ev: PointerEvent) => {
+      const fromSeat = getSeatRect(ev.target);
+      const toSeat = getSeatRect(ev.relatedTarget);
+
+      if (fromSeat && toSeat && fromSeat !== toSeat) return;
+
+      if (fromSeat && !toSeat) {
+        fromSeat.removeAttribute("stroke");
+        fromSeat.removeAttribute("stroke-width");
+
+        setTooltip({ visible: false, x: 0, y: 0, html: "" });
+      }
+    };
+
+    const onPointerMove = (ev: PointerEvent) => {
+      const seat = getSeatRect(ev.target);
+      if (!seat) {
+        setTooltip({ visible: false, x: 0, y: 0, html: "" });
+        return;
       }
 
-      seatGroup.classList.add("interactive-seat");
-      seatGroup.style.cursor = "pointer";
-    });
-  }, [svgMarkup, seatData]);
+      setTooltip((t) =>
+        t.visible
+          ? (() => {
+              const pos = clientToWrapper(ev.clientX, ev.clientY);
+              return { ...t, x: pos.x + 12, y: pos.y + 12 };
+            })()
+          : t
+      );
+    };
 
-  // -------------------------------------------------------------------
-  // HOVER LOGIC (works for seat_2A, seat_2B, seat_4C)
-  // -------------------------------------------------------------------
- useEffect(() => {
-  const container = containerRef.current;
-  if (!container) return;
+    const onLeave = () => {
+      container
+        .querySelectorAll("rect[id^='seat_']")
+        .forEach((r) => r.removeAttribute("stroke"));
+      setTooltip({ visible: false, x: 0, y: 0, html: "" });
+    };
 
-  const groups = container.querySelectorAll<SVGGElement>("g[id^='seat_']");
+    container.addEventListener("pointerover", onPointerOver);
+    container.addEventListener("pointerout", onPointerOut);
+    container.addEventListener("pointermove", onPointerMove);
+    container.addEventListener("pointerleave", onLeave);
 
-  const onEnter = (ev: PointerEvent) => {
-    const group = ev.currentTarget as SVGGElement;
-    const seatInfo = seatData[group.id];
-    if (!seatInfo) return;
+    return () => {
+      container.removeEventListener("pointerover", onPointerOver);
+      container.removeEventListener("pointerout", onPointerOut);
+      container.removeEventListener("pointermove", onPointerMove);
+      container.removeEventListener("pointerleave", onLeave);
+    };
+  }, [seatData, zoom]);
 
-    // highlight
-    group.querySelectorAll("path").forEach((p) => {
-      p.setAttribute("stroke", "#222");
-      p.setAttribute("stroke-width", "0");
-    });
+  /* RENDER */
+  return (
+    <div
+      ref={wrapperRef}
+      style={{ position: "relative", width: "100%", height: "100%" }}
+    >
+      {/* ⬅️ ZOOM CONTROLS */}
+      <div className="zoom-controls">
+        <button className="zoom-btn" onClick={handleZoomIn}>
+          +
+        </button>
+        <button className="zoom-btn" onClick={handleZoomOut}>
+          −
+        </button>
+        <button className="zoom-btn" onClick={handleReset}>
+          ⟲
+        </button>
+      </div>
 
-    setTooltip({
-      visible: true,
-      x: ev.clientX + 12,
-      y: ev.clientY + 12,
-      html: `
-        <strong>Seat No: ${group.id.replace("seat_", "")}</strong><br/>
-        Frequent Traveller ID: ${seatInfo.travellerId}<br/>
-        Passenger Name: ${seatInfo.name}<br/>
-        Most Purchased Items: ${seatInfo.MostPurchasedItems}
-      `,
-    });
-  };
-
-  const onLeave = (ev: PointerEvent) => {
-    const group = ev.currentTarget as SVGGElement;
-
-    group.querySelectorAll("path").forEach((p) => {
-      p.removeAttribute("stroke");
-      p.removeAttribute("stroke-width");
-    });
-
-    setTooltip((t) => ({ ...t, visible: false }));
-  };
-
-  const onMove = (ev: PointerEvent) => {
-    setTooltip((t) =>
-      t.visible
-        ? {
-            ...t,
-            x: ev.clientX + 12,
-            y: ev.clientY + 12,
-          }
-        : t
-    );
-  };
-
-  groups.forEach((g) => {
-    g.addEventListener("pointerenter", onEnter);
-    g.addEventListener("pointerleave", onLeave);
-    g.addEventListener("pointermove", onMove);
-  });
-
-  return () => {
-    groups.forEach((g) => {
-      g.removeEventListener("pointerenter", onEnter);
-      g.removeEventListener("pointerleave", onLeave);
-      g.removeEventListener("pointermove", onMove);
-    });
-  };
-}, [seatData]);
-
-
-  // -------------------------------------------------------------------
-  // RENDER SVG
-  // -------------------------------------------------------------------
-  const svgNode = useMemo(
-    () => (
       <div
         ref={containerRef}
         className="svg-container"
-        dangerouslySetInnerHTML={{ __html: svgMarkup }}
-        style={{ width: "100%", height: "100%", overflow: "visible" }}
+        style={{
+          width: "100%",
+          height: "100%",
+          transform: `scale(${zoom})`,
+          transformOrigin: "center top",
+        }}
+        dangerouslySetInnerHTML={{ __html: processedSvg }}
       />
-    ),
-    [svgMarkup]
-  );
-
-  return (
-    <div className="flight-seat-map-container" style={{ position: "relative", width: "100%", height: "100%" }}>
-      {svgNode}
 
       {tooltip.visible && (
         <div
           className="tooltip"
           style={{
-            position: "fixed",
+            position: "absolute",
             top: tooltip.y,
             left: tooltip.x,
             pointerEvents: "none",
-            zIndex: 99999,
-            background: "rgba(30, 30, 30, 0.92)",
-            color: "#fff",
-            padding: "10px 14px",
-            borderRadius: "6px",
-            fontSize: "13px",
-            fontFamily: "Inter, sans-serif",
-            lineHeight: "1.45",
-            textAlign: "left",      
-            border: "1px solid rgba(255,255,255,0.12)",
-            maxWidth: "260px"
+            whiteSpace: "nowrap",
+            transform: "translate(0, 0)",
           }}
           dangerouslySetInnerHTML={{ __html: tooltip.html }}
         />
